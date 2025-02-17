@@ -1,0 +1,2 @@
+Token: int Tipo: Palabra Reservada
+Token: l Tipo: Identificador
