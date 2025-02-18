@@ -6,18 +6,19 @@
 #include <memory>
 #include <string>
 #include <unordered_set>
+#include <algorithm>
 
 using namespace std;
 
 // Definición de tipos de tokens
 enum class TipoTokens {
-    PalabraReservada, 
-    Identificador,      
-    Literal,          
-    Operador,         
-    Delimitador,        
-    FinExpresion,            
-    Invalido           
+    PalabraReservada,
+    Identificador,
+    Literal,
+    Operador,
+    Delimitador,
+    FinExpresion,
+    Invalido
 };
 
 // Estructura del token
@@ -26,16 +27,11 @@ struct Token {
     string value;
 };
 
-
-Token token;
-vector<Token> tokens;
-
-
 // Clase para el analizador léxico
 class AnalizadorLexico {
 public:
     AnalizadorLexico(const string& input) : input(input), pos(0) {
-        palabrasReservadas = { "if", "else", "while", "for", "return", "int" };
+        palabrasReservadas = { "if", "else", "while", "for", "return", "int", "float", "double", "char" };
     }
 
     Token getNextToken() {
@@ -56,14 +52,19 @@ public:
             return { TipoTokens::Literal, digito };
         }
 
-        // Palabras reservadas
+        // Palabras reservadas e identificadores
         if (isalpha(caracter)) {
             string cadenas;
             while (pos < input.size() && (isalnum(input[pos]) || input[pos] == '_')) {
                 cadenas += input[pos++];
             }
-            if (palabrasReservadas.find(cadenas) != palabrasReservadas.end()) {
-                return { TipoTokens::PalabraReservada, cadenas };
+
+            // Convertir a minúsculas para comparación
+            string lowerCadenas = cadenas;
+            transform(lowerCadenas.begin(), lowerCadenas.end(), lowerCadenas.begin(), ::tolower);
+
+            if (palabrasReservadas.find(lowerCadenas) != palabrasReservadas.end()) {
+                return { TipoTokens::PalabraReservada, cadenas };  // Mantiene la versión original
             }
             else {
                 return { TipoTokens::Identificador, cadenas };
@@ -71,33 +72,89 @@ public:
         }
 
         // Operadores
-        if (caracter == '+') { pos++; return { TipoTokens::Operador, "+" }; }
-        if (caracter== '-') { pos++; return { TipoTokens::Operador, "-" }; }
-        if (caracter == '*') { pos++; return { TipoTokens::Operador, "*" }; }
-        if (caracter == '/') { pos++; return { TipoTokens::Operador, "/" }; }
+        if (caracter == '+' || caracter == '-' || caracter == '*' || caracter == '/') {
+            pos++;
+            return { TipoTokens::Operador, string(1, caracter) };
+        }
 
         // Delimitadores
-        if (caracter == '(') { pos++; return { TipoTokens ::Delimitador, "(" }; }
-        if (caracter == ')') { pos++; return { TipoTokens::Delimitador, ")" }; }
-        if (caracter == ',') { pos++; return { TipoTokens::Delimitador, "," }; }
-        if (caracter == ';') { pos++; return { TipoTokens::Delimitador, ";" }; }
-        if (caracter == '=') { pos++; return { TipoTokens::Delimitador, "=" }; }
+        if (caracter == '(' || caracter == ')' || caracter == ',' || caracter == ';' || caracter == '=') {
+            pos++;
+            return { TipoTokens::Delimitador, string(1, caracter) };
+        }
 
-        // Si encontramos un carácter no válido, lo marcamos y detenemos el análisis
         cerr << "Error: Caracter no válido encontrado: '" << caracter << "'\n";
-        exit(1);  // Termina el programa si se encuentra un carácter no válido
+        exit(1);
     }
 
 private:
     string input;
     size_t pos;
-    unordered_set<string> palabrasReservadas; 
+    unordered_set<string> palabrasReservadas;
 };
 
+// Vector global de tokens
+vector<Token> tokens;
 
-// Función para imprimir los tokens agrupados
+// Función para tokenizar una operación matemática
+vector<Token> tokenize(const string& operacion) {
+    vector<Token> result;
+    AnalizadorLexico analizador(operacion);
+    Token token;
+    while ((token = analizador.getNextToken()).type != TipoTokens::FinExpresion) {
+        result.push_back(token);
+    }
+    return result;
+}
+
+// Estructura para la tabla de símbolos
+struct Simbolo {
+    string nombre;
+    TipoTokens token;
+    string tipo;
+};
+
+vector<Simbolo> tablaSimbolos;  // Vector que almacena los identificadores
+
+// Función para actualizar la tabla de símbolos
+void ActualizarTablaSimbolos() {
+    tablaSimbolos.clear();
+    string tipoActual = "";
+
+    for (size_t i = 0; i < tokens.size(); i++) {
+        if (tokens[i].type == TipoTokens::PalabraReservada && tokens[i].value == "int") {
+            tipoActual = "int";  // Si hay una declaración de int, guardar el tipo
+        }
+        else if (tokens[i].type == TipoTokens::Identificador) {
+            bool existe = false;
+            for (const auto& simbolo : tablaSimbolos) {
+                if (simbolo.nombre == tokens[i].value) {
+                    existe = true;
+                    break;
+                }
+            }
+            if (!existe) {
+                tablaSimbolos.push_back({ tokens[i].value, TipoTokens::Identificador, tipoActual.empty() ? "Desconocido" : tipoActual });
+            }
+            tipoActual = "";  // Reiniciar tipo después de asignarlo
+        }
+    }
+}
+
+// Función para mostrar la tabla de símbolos
+void MostrarTablaSimbolos() {
+    cout << "\nTabla de Simbolos:\n";
+    cout << "===============================\n";
+    cout << "Identificador\tToken\t\tTipo\n";
+    cout << "-------------------------------\n";
+    for (const auto& simbolo : tablaSimbolos) {
+        cout << simbolo.nombre << "\t\tIdentificador\t" << simbolo.tipo << "\n";
+    }
+}
+
+// Función para mostrar tokens agrupados
 void MostrarTokens() {
-    cout << "Tokens por categoría:\n";
+    cout << "Tokens por categoria:\n";
     cout << "\nPalabras Reservadas:\n";
     for (const auto& token : tokens) {
         if (token.type == TipoTokens::PalabraReservada) {
@@ -131,33 +188,9 @@ void MostrarTokens() {
     cout << endl;
 }
 
-
-void GuardarEnArchivo() {
-    ofstream outFile("tokens.txt");
-    for (const auto& token : tokens) {
-        outFile << "Token: " << token.value << " Tipo: ";
-        switch (token.type) {
-        case TipoTokens::PalabraReservada: outFile << "Palabra Reservada"; break;
-        case TipoTokens::Identificador: outFile << "Identificador"; break;
-        case TipoTokens::Literal: outFile << "Literal"; break;
-        case TipoTokens::Operador: outFile << "Operador"; break;
-        case TipoTokens::Delimitador: outFile << "Delimitador"; break;
-        default: outFile << "Inválido"; break;
-        }
-        outFile << endl;
-    }
-    outFile.close();
-    cout << "Tokens guardados en 'tokens.txt'." << endl;
-}
-
-
 // Función principal
 int main() {
     int opcion;
-    string expresion;
-    AnalizadorLexico* Analisis = nullptr;
-
-    cout << "Proyecto Analizador Lexico y Sintactico" << endl;
     do {
         cout << "\nBienvenido, estas son las opciones del programa" << endl;
         cout << "1. Ingresar expresion" << endl;
@@ -167,40 +200,44 @@ int main() {
         cout << "5. Salir" << endl;
         cout << "\nEscriba el numero de la opcion a ejecutar: ";
         cin >> opcion;
-        switch (opcion) {
-        case 1:
-            cout << "Introduce una expresion: ";
-            cin.ignore();
-            getline(cin, expresion);
-            Analisis = new AnalizadorLexico(expresion);  // Aseguramos que Analisis reciba la expresión actualizada
-            tokens.clear();  // Limpiamos los tokens previos antes de procesar la nueva expresión
-            while (true) {
-                Token token = Analisis->getNextToken();
-                if (token.type == TipoTokens::FinExpresion) break;
-                tokens.push_back(token);
-            }
-            GuardarEnArchivo();
-            break;
-        case 2:
-            if (tokens.empty()) {
-                cout << "No se han analizado tokens. Ingresa una expresión primero.\n";
-            }
-            else {
-                MostrarTokens();
-            }
-            break;
-        case 3:
-            break;
-        case 4:
-            break;
-        default:
-            break;
+        cin.ignore();
+
+        if (opcion == 1) {
+            string operacion;
+            char continuar;
+            do {
+                cout << "Ingresa una expresion: ";
+                getline(cin, operacion);
+                vector<Token> newTokens = tokenize(operacion);
+
+                // Evitar duplicados en los tokens
+                for (const auto& newToken : newTokens) {
+                    bool existe = false;
+                    for (const auto& token : tokens) {
+                        if (newToken.value == token.value) {
+                            existe = true;
+                            break;
+                        }
+                    }
+                    if (!existe) {
+                        tokens.push_back(newToken);
+                    }
+                }
+
+                cout << "¿Deseas ingresar otra expresion? (s/n): ";
+                cin >> continuar;
+                cin.ignore();  // Ignorar el salto de línea después de la entrada
+            } while (continuar == 's' || continuar == 'S');
+
         }
-
+        else if (opcion == 2) {
+            MostrarTokens();
+        }
+        else if (opcion == 3 || opcion == 4) {
+            ActualizarTablaSimbolos();
+            MostrarTablaSimbolos();
+        }
     } while (opcion != 5);
-
-    // Liberamos la memoria de Analisis al final
-    delete Analisis;
 
     return 0;
 }
