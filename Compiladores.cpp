@@ -122,8 +122,11 @@ void ActualizarTablaSimbolos() {
     string tipoActual = "";
 
     for (size_t i = 0; i < tokens.size(); i++) {
-        if (tokens[i].type == TipoTokens::PalabraReservada && tokens[i].value == "int") {
-            tipoActual = "int";  // Si hay una declaración de int, guardar el tipo
+        if (tokens[i].type == TipoTokens::PalabraReservada) {
+            // Actualizar el tipo actual si es una palabra reservada de tipo (int, float, etc.)
+            if (tokens[i].value == "int" || tokens[i].value == "float" || tokens[i].value == "double" || tokens[i].value == "char") {
+                tipoActual = tokens[i].value;
+            }
         }
         else if (tokens[i].type == TipoTokens::Identificador) {
             bool existe = false;
@@ -136,7 +139,6 @@ void ActualizarTablaSimbolos() {
             if (!existe) {
                 tablaSimbolos.push_back({ tokens[i].value, TipoTokens::Identificador, tipoActual.empty() ? "Desconocido" : tipoActual });
             }
-            tipoActual = "";  // Reiniciar tipo después de asignarlo
         }
     }
 }
