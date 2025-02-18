@@ -7,6 +7,7 @@
 #include <string>
 #include <unordered_set>
 #include <algorithm>
+#include <iomanip>  // Para usar setw()
 
 using namespace std;
 
@@ -112,6 +113,7 @@ struct Simbolo {
     string nombre;
     TipoTokens token;
     string tipo;
+    int id; // Identificador único para cada variable
 };
 
 vector<Simbolo> tablaSimbolos;  // Vector que almacena los identificadores
@@ -120,10 +122,14 @@ vector<Simbolo> tablaSimbolos;  // Vector que almacena los identificadores
 void ActualizarTablaSimbolos() {
     tablaSimbolos.clear();
     string tipoActual = "";
+    int contadorId = 1; // Contador para asignar el número a los identificadores
 
     for (size_t i = 0; i < tokens.size(); i++) {
-        if (tokens[i].type == TipoTokens::PalabraReservada && tokens[i].value == "int") {
-            tipoActual = "int";  // Si hay una declaración de int, guardar el tipo
+        if (tokens[i].type == TipoTokens::PalabraReservada) {
+            // Actualizar el tipo actual si es una palabra reservada de tipo (int, float, etc.)
+            if (tokens[i].value == "int" || tokens[i].value == "float" || tokens[i].value == "double" || tokens[i].value == "char") {
+                tipoActual = tokens[i].value;
+            }
         }
         else if (tokens[i].type == TipoTokens::Identificador) {
             bool existe = false;
@@ -134,9 +140,9 @@ void ActualizarTablaSimbolos() {
                 }
             }
             if (!existe) {
-                tablaSimbolos.push_back({ tokens[i].value, TipoTokens::Identificador, tipoActual.empty() ? "Desconocido" : tipoActual });
+                tablaSimbolos.push_back({ tokens[i].value, TipoTokens::Identificador, tipoActual.empty() ? "Desconocido" : tipoActual, contadorId });
+                contadorId++; // Incrementar el identificador único para cada nuevo identificador
             }
-            tipoActual = "";  // Reiniciar tipo después de asignarlo
         }
     }
 }
@@ -144,12 +150,40 @@ void ActualizarTablaSimbolos() {
 // Función para mostrar la tabla de símbolos
 void MostrarTablaSimbolos() {
     cout << "\nTabla de Simbolos:\n";
-    cout << "===============================\n";
-    cout << "Identificador\tToken\t\tTipo\n";
-    cout << "-------------------------------\n";
+    cout << "=====================================\n";
+    cout << setw(15) << left << "Identificador"
+        << setw(20) << left << "Token"
+        << setw(10) << left << "Tipo" << endl;
+    cout << "=====================================\n";
     for (const auto& simbolo : tablaSimbolos) {
-        cout << simbolo.nombre << "\t\tIdentificador\t" << simbolo.tipo << "\n";
+        cout << setw(15) << left << simbolo.nombre  // Alineación a la izquierda con un ancho de 15
+            << setw(20) << left << "<id, " + to_string(simbolo.id) + ">"  // Alineación a la izquierda con un ancho de 20
+            << setw(10) << left << simbolo.tipo << endl;  // Alineación a la izquierda con un ancho de 10
     }
+}
+
+// Función para guardar la tabla de símbolos en un archivo
+void GuardarTablaSimbolosEnArchivo(const string& archivo) {
+    ofstream outFile(archivo);
+    if (!outFile.is_open()) {
+        cerr << "Error al abrir el archivo para escritura." << endl;
+        return;
+    }
+
+    outFile << "Tabla de Simbolos:\n";
+    outFile << "=====================================\n";
+    outFile << setw(15) << left << "Identificador"
+        << setw(20) << left << "Token"
+        << setw(10) << left << "Tipo" << endl;
+    outFile << "=====================================\n";
+    for (const auto& simbolo : tablaSimbolos) {
+        outFile << setw(15) << left << simbolo.nombre  // Alineación a la izquierda con un ancho de 15
+            << setw(20) << left << "<id, " + to_string(simbolo.id) + ">"  // Alineación a la izquierda con un ancho de 20
+            << setw(10) << left << simbolo.tipo << endl;  // Alineación a la izquierda con un ancho de 10
+    }
+
+    outFile.close();
+    cout << "Tabla de símbolos guardada en el archivo " << archivo << endl;
 }
 
 // Función para mostrar tokens agrupados
@@ -197,7 +231,8 @@ int main() {
         cout << "2. Analisis Lexico" << endl;
         cout << "3. Analisis Sintactico" << endl;
         cout << "4. Tabla de Simbolos" << endl;
-        cout << "5. Salir" << endl;
+        cout << "5. Guardar Tabla de Simbolos en archivo" << endl;
+        cout << "6. Salir" << endl;
         cout << "\nEscriba el numero de la opcion a ejecutar: ";
         cin >> opcion;
         cin.ignore();
@@ -237,8 +272,11 @@ int main() {
             ActualizarTablaSimbolos();
             MostrarTablaSimbolos();
         }
-    } while (opcion != 5);
+        else if (opcion == 5) {
+            GuardarTablaSimbolosEnArchivo("tabla_simbolos.txt");
+        }
+
+    } while (opcion != 6);
 
     return 0;
 }
-
