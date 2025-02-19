@@ -5,4 +5,3 @@ Identificador  Token               Tipo
 x              <id, 1>             int       
 y              <id, 2>             int       
 z              <id, 3>             int       
-n              <id, 4>             int       

@@ -65,7 +65,7 @@ public:
             transform(lowerCadenas.begin(), lowerCadenas.end(), lowerCadenas.begin(), ::tolower);
 
             if (palabrasReservadas.find(lowerCadenas) != palabrasReservadas.end()) {
-                return { TipoTokens::PalabraReservada, cadenas };  // Mantiene la versión original
+                return { TipoTokens::PalabraReservada, lowerCadenas };  // Mantiene la versión original
             }
             else {
                 return { TipoTokens::Identificador, cadenas };
@@ -120,28 +120,32 @@ vector<Simbolo> tablaSimbolos;  // Vector que almacena los identificadores
 
 // Función para actualizar la tabla de símbolos
 void ActualizarTablaSimbolos() {
-    tablaSimbolos.clear();
-    string tipoActual = "";
-    int contadorId = 1; // Contador para asignar el número a los identificadores
+    string tipoActual = "";  // Esta variable se restablece en cada llamada, para actualizar el tipo en cada nueva expresión.
+    int contadorId = 1;  // Contador para asignar el número a los identificadores
 
+    // Recorrer todos los tokens y asignarles el tipo adecuado
     for (size_t i = 0; i < tokens.size(); i++) {
         if (tokens[i].type == TipoTokens::PalabraReservada) {
-            // Actualizar el tipo actual si es una palabra reservada de tipo (int, float, etc.)
+            // Actualizar el tipo si es una palabra reservada de tipo (int, float, etc.)
             if (tokens[i].value == "int" || tokens[i].value == "float" || tokens[i].value == "double" || tokens[i].value == "char") {
-                tipoActual = tokens[i].value;
+                tipoActual = tokens[i].value;  // Actualizar tipoActual al tipo encontrado
             }
         }
         else if (tokens[i].type == TipoTokens::Identificador) {
             bool existe = false;
+
+            // Verificar si el identificador ya está en la tabla de símbolos
             for (const auto& simbolo : tablaSimbolos) {
                 if (simbolo.nombre == tokens[i].value) {
                     existe = true;
                     break;
                 }
             }
+
+            // Si no existe, agregarlo con el tipo correcto
             if (!existe) {
                 tablaSimbolos.push_back({ tokens[i].value, TipoTokens::Identificador, tipoActual.empty() ? "Desconocido" : tipoActual, contadorId });
-                contadorId++; // Incrementar el identificador único para cada nuevo identificador
+                contadorId++;  // Incrementar el identificador único
             }
         }
     }
@@ -222,6 +226,102 @@ void MostrarTokens() {
     cout << endl;
 }
 
+// Estructura del árbol sintáctico
+struct Nodo {
+    string valor;
+    vector<shared_ptr<Nodo>> hijos;
+};
+
+// Analizador sintáctico utilizando los tokens
+class AnalizadorSintactico {
+public:
+    AnalizadorSintactico(const vector<Token>& tokens) : tokens(tokens), pos(0) {}
+
+    void parse() {
+        shared_ptr<Nodo> raiz = expresion();
+        if (pos < tokens.size()) {
+            throw runtime_error("Error sintáctico: tokens adicionales después de la expresión.");
+        }
+
+        // Si llegamos aquí, la expresión es válida
+        cout << "Análisis sintáctico completado sin errores." << endl;
+        cout << "Árbol sintáctico:" << endl;
+        imprimirArbol(raiz);
+    }
+
+private:
+    vector<Token> tokens;
+    size_t pos;
+
+    shared_ptr<Nodo> expresion() {
+        shared_ptr<Nodo> nodoTermino = termino();
+        while (pos < tokens.size() && (tokens[pos].value == "+" || tokens[pos].value == "-")) {
+            string operador = tokens[pos].value;
+            pos++;
+            shared_ptr<Nodo> nodoTerminoDerecho = termino();
+            shared_ptr<Nodo> nodoOperacion = make_shared<Nodo>();
+            nodoOperacion->valor = operador;
+            nodoOperacion->hijos.push_back(nodoTermino);
+            nodoOperacion->hijos.push_back(nodoTerminoDerecho);
+            nodoTermino = nodoOperacion;
+        }
+        return nodoTermino;
+    }
+
+    shared_ptr<Nodo> termino() {
+        shared_ptr<Nodo> nodoFactor = factor();
+        while (pos < tokens.size() && (tokens[pos].value == "*" || tokens[pos].value == "/")) {
+            string operador = tokens[pos].value;
+            pos++;
+            shared_ptr<Nodo> nodoFactorDerecho = factor();
+            shared_ptr<Nodo> nodoOperacion = make_shared<Nodo>();
+            nodoOperacion->valor = operador;
+            nodoOperacion->hijos.push_back(nodoFactor);
+            nodoOperacion->hijos.push_back(nodoFactorDerecho);
+            nodoFactor = nodoOperacion;
+        }
+        return nodoFactor;
+    }
+
+    shared_ptr<Nodo> factor() {
+        if (pos >= tokens.size()) {
+            throw runtime_error("Error sintáctico: se esperaba un número o un identificador.");
+        }
+
+        shared_ptr<Nodo> nodo;
+        if (tokens[pos].type == TipoTokens::Literal || tokens[pos].type == TipoTokens::Identificador) {
+            nodo = make_shared<Nodo>();
+            nodo->valor = tokens[pos].value;
+            pos++;
+        }
+        else if (tokens[pos].value == "(") {
+            pos++;  // Consumir '('
+            nodo = expresion();
+            if (pos >= tokens.size() || tokens[pos].value != ")") {
+                throw runtime_error("Error sintáctico: se esperaba un paréntesis de cierre.");
+            }
+            pos++;  // Consumir ')'
+        }
+        else {
+            throw runtime_error("Error sintáctico: token inesperado.");
+        }
+
+        return nodo;
+    }
+
+    void imprimirArbol(shared_ptr<Nodo> nodo, int nivel = 0) {
+        if (!nodo) return;
+
+        // Mostrar el valor del nodo con indentación
+        cout << string(nivel * 4, ' ') << nodo->valor << endl;
+
+        // Recursivamente imprimir los hijos
+        for (const auto& hijo : nodo->hijos) {
+            imprimirArbol(hijo, nivel + 1);
+        }
+    }
+};
+
 // Función principal
 int main() {
     int opcion;
@@ -268,7 +368,17 @@ int main() {
         else if (opcion == 2) {
             MostrarTokens();
         }
-        else if (opcion == 3 || opcion == 4) {
+
+        else if (opcion == 3) {
+            AnalizadorSintactico analizador(tokens);
+            try {
+                analizador.parse();
+            }
+            catch (const runtime_error& e) {
+                cerr << "Error: " << e.what() << endl;
+            }
+        }
+        else if (opcion == 4) {
             ActualizarTablaSimbolos();
             MostrarTablaSimbolos();
         }
